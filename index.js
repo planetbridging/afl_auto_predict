@@ -1,20 +1,66 @@
 const tf = require('@tensorflow/tfjs-node');
 const csv = require('csv-parser');
 const fs = require('fs');
+const cheerio = require('cheerio');
 
 const convertExcelToCSV = require('./excelConvert');
+const getCurrentMatches = require('./getCurrentMatches');
+
+const urlExcelAfl = 'https://www.aussportsbetting.com/historical_data/afl.xlsx';
 
 
 (async () => {
 // Example usage
 //predictMatch( 'Geelong Cats', 'Brisbane Lions');
 
-const url = 'https://www.aussportsbetting.com/historical_data/afl.xlsx';
 
-convertExcelToCSV(url)
+/*convertExcelToCSV(urlExcelAfl)
   .then((message) => console.log(message))
-  .catch((error) => console.error(error));
+  .catch((error) => console.error(error));*/
+  
+
+  var html = await getCurrentMatches();
+  parseTable(html);
+
 })();
+
+
+function parseTable(html) {
+    const $ = cheerio.load(html);
+    const table = $('#SportsTable');
+  
+    table.find('tr').each((i, row) => {
+      const cols = $(row).find('td');
+      if (cols.length > 0) {
+        const date = $(cols[0]).text().trim();
+        const time = $(cols[1]).text().trim();
+        const event = $(cols[2]).text().trim();
+        const venue = $(cols[3]).text().trim();
+        let match = [];
+  
+        if (event.includes('AFL')) {
+          match = event.replace('AFL: ', '');
+          const teams = match.split(' v ');
+  
+          if (teams.length > 1) {
+            const rowString = `${date},${time},${event},${venue},`;
+  
+            try {
+              // Assuming predict_match is a function you have defined elsewhere
+              //predict_match(rowString, teams[0], teams[1]);
+              console.log(rowString);
+              console.log(teams[0], teams[1]);
+            } catch (error) {
+              console.error('An error occurred while predicting the match:', error);
+            }
+          }
+        }
+      }
+    });
+  }
+
+
+//-----------
 
 function minMaxScaler(data) {
   const min = data.reduce((acc, val) => val.map((v, i) => Math.min(v, acc[i])), Array(data[0].length).fill(Infinity));

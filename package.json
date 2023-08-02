@@ -13,6 +13,7 @@
     "@tensorflow/tfjs-node": "^4.10.0",
     "axios": "^1.4.0",
     "babel-runtime": "^6.26.0",
+    "cheerio": "^1.0.0-rc.12",
     "csv-parser": "^3.0.0",
     "danfojs-node": "^1.1.2",
     "exceljs": "^4.3.0",
