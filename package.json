@@ -11,9 +11,11 @@
   "license": "ISC",
   "dependencies": {
     "@tensorflow/tfjs-node": "^4.10.0",
+    "axios": "^1.4.0",
     "babel-runtime": "^6.26.0",
     "csv-parser": "^3.0.0",
     "danfojs-node": "^1.1.2",
+    "exceljs": "^4.3.0",
     "machinelearn": "^2.1.5",
     "mathjs": "^11.9.1",
     "ml-regression": "^5.0.0",

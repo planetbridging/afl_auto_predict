@@ -2,6 +2,20 @@ const tf = require('@tensorflow/tfjs-node');
 const csv = require('csv-parser');
 const fs = require('fs');
 
+const convertExcelToCSV = require('./excelConvert');
+
+
+(async () => {
+// Example usage
+//predictMatch( 'Geelong Cats', 'Brisbane Lions');
+
+const url = 'https://www.aussportsbetting.com/historical_data/afl.xlsx';
+
+convertExcelToCSV(url)
+  .then((message) => console.log(message))
+  .catch((error) => console.error(error));
+})();
+
 function minMaxScaler(data) {
   const min = data.reduce((acc, val) => val.map((v, i) => Math.min(v, acc[i])), Array(data[0].length).fill(Infinity));
   const max = data.reduce((acc, val) => val.map((v, i) => Math.max(v, acc[i])), Array(data[0].length).fill(-Infinity));
@@ -74,5 +88,4 @@ function predictMatch(team1, team2) {
     });
 }
 
-// Example usage
-predictMatch( 'Geelong Cats', 'Brisbane Lions');
+
