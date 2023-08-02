@@ -2,12 +2,17 @@ const tf = require('@tensorflow/tfjs-node');
 const csv = require('csv-parser');
 const fs = require('fs');
 const cheerio = require('cheerio');
+const express = require('express');
+const app = express();
+const port = 5008;
 
 const convertExcelToCSV = require('./excelConvert');
 const getCurrentMatches = require('./getCurrentMatches');
+const predictMatch = require('./aflModels');
+
 
 const urlExcelAfl = 'https://www.aussportsbetting.com/historical_data/afl.xlsx';
-
+var htmlString= "refreshing";
 
 (async () => {
 // Example usage
@@ -18,18 +23,129 @@ const urlExcelAfl = 'https://www.aussportsbetting.com/historical_data/afl.xlsx';
   .then((message) => console.log(message))
   .catch((error) => console.error(error));*/
   
+   
 
-  var html = await getCurrentMatches();
-  parseTable(html);
+    //console.log(lstPredictions[0]);
+    //console.log(lstPredictions[0][3]["predictions"]);
+    //var tblRow = createPredictionRow([lstPredictions[0],lstPredictions[1],lstPredictions[2],lstPredictions[0][3]["predictions"]]);
+    //console.log(tblRow);
 
+    await refreshing();
+
+    setInterval(refreshing, 24 * 60 * 60 * 1000);
+
+    // Route to return the HTML string
+app.get('/afl', (req, res) => {
+    res.send(htmlString);
+  });
+  
+  app.listen(port, () => {
+    console.log(`Server running at http://localhost:${port}`);
+  });
 })();
 
+async function refreshing(){
 
-function parseTable(html) {
+    await convertExcelToCSV(urlExcelAfl);
+
+    var lstPredictions = [];
+    var html = await getCurrentMatches();
+    var lst = await parseTable(html);
+      //console.log(lst);
+  
+      for(var i in lst){
+          try{
+          var output = await predictMatch(lst[i][1], lst[i][2]);
+          //console.log(lst[i][0] +","+lst[i][1] +","+lst[i][2] +"," ,output);
+              lstPredictions.push([lst[i][0],lst[i][1],lst[i][2],output]);
+          }catch{
+              console.log("unable to process team");
+              lstPredictions.push([lst[i][0],lst[i][1],lst[i][2],[]]);
+          }
+      }
+
+      htmlString = createTable(lstPredictions);
+      console.log("refreshed",new Date().toDateString());
+}
+
+function createTableHeader() {
+    return `
+      <thead>
+        <tr>
+          <th>Time of Match</th>
+          <th>Teams</th>
+          <th>Predicted Winner</th>
+          <th>Predictions</th>
+        </tr>
+      </thead>
+    `;
+  }
+
+function createTable(items) {
+    const headerHtml = createTableHeader();
+
+    var trHtml = "";
+
+    for(var i in items){
+        try{
+            var tblRow = createPredictionRow([items[i][0],items[i][1],items[i][2],items[i][3]["predictions"]]);
+        trHtml += tblRow;
+        }catch{}
+    }
+    //const rowHtml = createPredictionRow(item); // Assuming createPredictionRow is defined as before
+  
+    return `
+      <table class="table table-dark">
+        ${headerHtml}
+        <tbody>
+          ${trHtml}
+        </tbody>
+      </table>
+    `;
+  }
+
+function createPredictionRow(item) {
+    const [timeOfMatch, team1, team2, predictions] = item;
+  
+    // Calculate the total scores for both teams
+    const totalScores = predictions.reduce(
+      (totals, [score1, score2]) => [totals[0] + score1, totals[1] + score2],
+      [0, 0]
+    );
+  
+    // Determine the winner
+    const winner = totalScores[0] > totalScores[1] ? team1 : team2;
+  
+    // Create the HTML for the predictions
+const predictionsHtml = predictions
+.map(([score1, score2]) => `<li>${Math.round(score1)} vs ${Math.round(score2)}</li>`)
+.join('');
+
+  
+    // Create the HTML for the table row
+    const rowHtml = `
+      <tr>
+        <td>${timeOfMatch}</td>
+        <td>${team1} vs ${team2}</td>
+        <td>${winner} will win</td>
+        <td>
+          <ul>
+            ${predictionsHtml}
+          </ul>
+        </td>
+      </tr>
+    `;
+  
+    return rowHtml;
+  }
+
+
+async function parseTable(html) {
+    var lst = [];
     const $ = cheerio.load(html);
     const table = $('#SportsTable');
   
-    table.find('tr').each((i, row) => {
+    table.find('tr').each(async (i, row) => {
       const cols = $(row).find('td');
       if (cols.length > 0) {
         const date = $(cols[0]).text().trim();
@@ -48,8 +164,16 @@ function parseTable(html) {
             try {
               // Assuming predict_match is a function you have defined elsewhere
               //predict_match(rowString, teams[0], teams[1]);
-              console.log(rowString);
-              console.log(teams[0], teams[1]);
+              //console.log(rowString);
+              //console.log(teams[0], teams[1]);
+              lst.push([rowString,teams[0], teams[1]]);
+              /*try{
+                var output = await predictMatch(teams[0], teams[1]);
+                console.log(output);
+              }catch{
+                console.log("unable to process team");
+              }*/
+             
             } catch (error) {
               console.error('An error occurred while predicting the match:', error);
             }
@@ -57,10 +181,14 @@ function parseTable(html) {
         }
       }
     });
+    return lst;
   }
 
 
 //-----------
+
+
+/*
 
 function minMaxScaler(data) {
   const min = data.reduce((acc, val) => val.map((v, i) => Math.min(v, acc[i])), Array(data[0].length).fill(Infinity));
@@ -135,3 +263,4 @@ function predictMatch(team1, team2) {
 }
 
 
+*/
