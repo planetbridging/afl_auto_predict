@@ -43,7 +43,8 @@ function predictMatch(team1, team2) {
         }
       })
       .on('end', () => {
-        const scaler = minMaxScaler(scores);
+        try{
+          const scaler = minMaxScaler(scores);
         const normalizedScores = scaler.transform(scores);
 
         const sequenceLength = 4;
@@ -81,6 +82,11 @@ function predictMatch(team1, team2) {
             actualValues: y_test,
           });
         });
+        }catch(ex){
+          console.log("failed to predict  a match");
+          resolve(null);
+        }
+        
       })
       .on('error', (error) => {
         reject(error);
