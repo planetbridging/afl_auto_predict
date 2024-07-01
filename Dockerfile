@@ -1,14 +1,25 @@
-FROM node:14
+# Use an official Python runtime as the base image
+FROM python:3.9
 
+# Set the working directory in the container
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN npm install
-RUN npm install @tensorflow/tfjs-node
+# Copy the requirements file into the container
+COPY requirements.txt .
 
+# Install the Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the rest of the application code
 COPY . .
 
+# Expose the port the app runs on
 EXPOSE 5008
 
-CMD ["node", "index.js"]
+# Command to run the application
+CMD ["python", "app.py"]
