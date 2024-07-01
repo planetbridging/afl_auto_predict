@@ -4,7 +4,6 @@ from excel_convert import convert_excel_to_csv
 from get_current_matches import fetch_table
 import pandas as pd
 from datetime import datetime
-import asyncio
 
 app = Flask(__name__)
 
@@ -12,18 +11,18 @@ URL_EXCEL_AFL = 'https://www.aussportsbetting.com/historical_data/afl.xlsx'
 
 @app.route('/afl')
 def afl():
-    predictions = asyncio.run(refreshing())
+    predictions = refreshing()
     return render_template('afl.html', predictions=predictions)
 
-async def refreshing():
-    await convert_excel_to_csv(URL_EXCEL_AFL)
-    html = await fetch_table()
+def refreshing():
+    convert_excel_to_csv(URL_EXCEL_AFL)
+    html = fetch_table()
     matches = parse_table(html)
     
     predictions = []
     for match in matches:
         try:
-            output = await predict_match(match[1], match[2])
+            output = predict_match(match[1], match[2])
             predictions.append([match[0], match[1], match[2], output])
         except Exception as e:
             print(f"Unable to process team: {e}")

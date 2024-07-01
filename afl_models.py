@@ -1,51 +1,67 @@
-from flask import Flask, render_template
-from afl_models import predict_match
-from excel_convert import convert_excel_to_csv
-from get_current_matches import fetch_table
 import pandas as pd
-from datetime import datetime
-import asyncio
+import tensorflow as tf
+from sklearn.preprocessing import MinMaxScaler
+import numpy as np
 
-app = Flask(__name__)
+def min_max_scaler(data):
+    scaler = MinMaxScaler()
+    return scaler.fit_transform(data)
 
-URL_EXCEL_AFL = 'https://www.aussportsbetting.com/historical_data/afl.xlsx'
+def modify_team_name(team_name):
+    replace_dict = {
+        'Geelong Cats': 'Geelong',
+        'Brisbane Lions': 'Brisbane',
+        'Gold Coast Suns': 'Gold Coast',
+        'Sydney Swans': 'Sydney',
+        'Adelaide Crows': 'Adelaide',
+        'West Coast Eagles': 'West Coast',
+    }
+    return replace_dict.get(team_name, team_name)
 
-@app.route('/afl')
-def afl():
-    predictions = asyncio.run(refreshing())
-    return render_template('afl.html', predictions=predictions)
+def predict_match(team1, team2):
+    team1 = modify_team_name(team1)
+    team2 = modify_team_name(team2)
 
-async def refreshing():
-    await convert_excel_to_csv(URL_EXCEL_AFL)
-    html = await fetch_table()
-    matches = parse_table(html)
+    df = pd.read_csv('afl.csv')
+    scores = df[((df['Home Team'] == team1) & (df['Away Team'] == team2)) |
+                ((df['Home Team'] == team2) & (df['Away Team'] == team1))]
     
-    predictions = []
-    for match in matches:
-        try:
-            output = await predict_match(match[1], match[2])
-            predictions.append([match[0], match[1], match[2], output])
-        except Exception as e:
-            print(f"Unable to process team: {e}")
-            predictions.append([match[0], match[1], match[2], None])
+    if scores.empty:
+        return None
+
+    scores = scores[['Home Score', 'Away Score']].values
+    normalized_scores = min_max_scaler(scores)
+
+    sequence_length = 4
+    X, y = [], []
+
+    for i in range(sequence_length, len(normalized_scores)):
+        X.append(normalized_scores[i-sequence_length:i])
+        y.append(normalized_scores[i])
+
+    X, y = np.array(X), np.array(y)
+
+    X_train, y_train = X[:-10], y[:-10]
+    X_test, y_test = X[-10:], y[-10:]
+
+    if len(X_train) == 0:
+        return None
+
+    model = tf.keras.Sequential([
+        tf.keras.layers.LSTM(50, input_shape=(X_train.shape[1], X_train.shape[2])),
+        tf.keras.layers.Dense(2)
+    ])
+
+    model.compile(loss='mean_squared_error', optimizer='adam')
+    model.fit(X_train, y_train, epochs=20, batch_size=1, verbose=0)
+
+    predictions = model.predict(X_test)
     
-    print(f"Refreshed on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    return predictions
+    scaler = MinMaxScaler()
+    scaler.fit(scores)
+    reversed_predictions = scaler.inverse_transform(predictions)
 
-def parse_table(html):
-    df = pd.read_html(html)[0]
-    matches = []
-    for _, row in df.iterrows():
-        if 'AFL' in row['Event']:
-            date = row['Date']
-            time = row['Time']
-            event = row['Event'].replace('AFL: ', '')
-            venue = row['Venue']
-            teams = event.split(' v ')
-            if len(teams) > 1:
-                row_string = f"{date},{time},{event},{venue},"
-                matches.append([row_string, teams[0], teams[1]])
-    return matches
-
-if __name__ == '__main__':
-    app.run(port=5008)
+    return {
+        'predictions': reversed_predictions.tolist(),
+        'actual_values': y_test.tolist()
+    }

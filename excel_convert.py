@@ -1,16 +1,13 @@
 import pandas as pd
-import aiohttp
-import aiofiles
+import requests
 
-async def convert_excel_to_csv(url, excel_path='afl.xlsx', csv_path='afl.csv'):
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
-            if response.status == 200:
-                data = await response.read()
-                async with aiofiles.open(excel_path, mode='wb') as f:
-                    await f.write(data)
-            else:
-                raise Exception(f"Failed to download file: HTTP {response.status}")
+def convert_excel_to_csv(url, excel_path='afl.xlsx', csv_path='afl.csv'):
+    response = requests.get(url)
+    if response.status_code == 200:
+        with open(excel_path, 'wb') as f:
+            f.write(response.content)
+    else:
+        raise Exception(f"Failed to download file: HTTP {response.status_code}")
 
     df = pd.read_excel(excel_path)
     df.to_csv(csv_path, index=False)
